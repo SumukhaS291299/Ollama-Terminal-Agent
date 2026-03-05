@@ -42,7 +42,7 @@ def setup_logger(name: str):
         show_path=True,  # This makes the file paths clickable in supported terminals (like Zed/PyCharm/VSCode)
         markup=True,
     )
-    console_handler.setLevel(logging.DEBUG)
+    console_handler.setLevel(logging.INFO)
 
     # --- Add all handlers ---
     logger.addHandler(file_handler)

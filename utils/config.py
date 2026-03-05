@@ -5,7 +5,7 @@ from .agentLogger import setup_logger
 
 
 class Readconfig:
-    def __init__(self, path=Path.cwd().parent / "config.ini"):
+    def __init__(self, path=Path.cwd() / "config.ini"):
         self.logger = setup_logger("config")
         self.path = path
         self.config = configparser.ConfigParser()
