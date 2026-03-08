@@ -1,8 +1,8 @@
 from configparser import ConfigParser
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from utils import setup_logger, config
+from utils import config, setup_logger
 from utils.messageBuilder import MessageBuilder
 from utils.thinking import ThinkFirst
 
@@ -13,14 +13,16 @@ def main():
     conf: ConfigParser = config.Readconfig().read()
     thinking = ThinkFirst(conf)
 
-    messages = MessageBuilder().build(SystemMessage(content="You should answer the question."),
-                                      AIMessage(
-                                          content="Sumukha S wrote terminal agent for ollama, he is a software engineer and developer"),
-                                      HumanMessage(content="Who has coded terminal agent for ollama?"))
+    messages = MessageBuilder().build(
+        SystemMessage(content="You are a helpful assistant."),
+        HumanMessage(content="Who wrote terminal agent for ollama?"),
+        AIMessage(content="Sumukha S wrote terminal agent for ollama."),
+        HumanMessage(content="Who coded it?"),
+    )
 
-    response = thinking.think_content(messages=messages, think=True)
+    response = thinking.think_content(messages=messages, temperature=0.6, think=False)
     print(response)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
