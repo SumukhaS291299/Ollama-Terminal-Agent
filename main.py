@@ -25,12 +25,18 @@ def main():
 
     teminal_tool = TerminalTools(conf)
 
+    # messages = MessageBuilder().build(
+    #     SystemMessage(content="You are a helpful assistant, you are allowed to use any available tool"),
+    #     HumanMessage(content="Welcome Sumukha S"),
+    # )
+    # teminal_tool.tool_content(messages=messages, temperature=0.1, think=False)
+
     messages = MessageBuilder().build(
-        SystemMessage(
-            content="You are a helpful assistant, you are allowed to use any available tool"
-        ),
-        HumanMessage(content="Greet Sumukha S"),
+        SystemMessage(content="You are a terminal assistant. Use tools when needed to execute commands."),
+        AIMessage(content="The user is uaing a windows PC need to run `dir` command to get the list of files"),
+        HumanMessage(content="I want you to list all my files in the directory."),
     )
+
     teminal_tool.tool_content(messages=messages, temperature=0.1, think=False)
 
 

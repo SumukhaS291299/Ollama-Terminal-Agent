@@ -6,6 +6,7 @@ from langchain.tools import tool
 from langchain_core.messages import BaseMessage, ChatMessage
 from langchain_core.messages.ai import AIMessage
 from langchain_ollama import ChatOllama
+from rich.console import RenderResult
 from typing_extensions import List
 
 from .agentLogger import setup_logger
@@ -24,9 +25,7 @@ class TerminalTools:
         self.toolMap = {"sayHello": TerminalTools.sayHello, "runCommand": TerminalTools.runCommand}
 
     def healthCheck(self) -> bool:
-        healthResp = httpx.get(
-            url=f"{self.Scheme}://{self.Host}:{self.Port}{API.TAGS.value}", timeout=300
-        )
+        healthResp = httpx.get(url=f"{self.Scheme}://{self.Host}:{self.Port}{API.TAGS.value}", timeout=300)
         self.logger.info("Running health test...")
         self.logger.info(f"Status code:\t {healthResp.status_code}")
         self.logger.debug(f"Health:\t {healthResp.status_code}")
@@ -50,13 +49,10 @@ class TerminalTools:
     @tool
     @staticmethod
     def sayHello(user: str) -> str:
-        """Greet user saying hello.
+        """Greet a user, welcome a user, say Hi to a user
 
         Args:
-            user: Name of the user
-            type: str
-        Returns:
-            type: string
+            user: Name of the user to greet.
         """
         print("Called greeting tool...")
         return f"Hello {user}"
@@ -168,7 +164,7 @@ class TerminalTools:
             top_k=top_k,
             stop=stop,
             **kwargs,
-        ).bind_tools(self.BaseTools)
+        ).bind_tools(tools=self.BaseTools, tool_choice="auto")
 
         response = llm.invoke(messages)
 
@@ -179,13 +175,18 @@ class TerminalTools:
             self.logger.warning("No tool calls was found")
         if isinstance(response, AIMessage) and response.tool_calls:
             print(response.tool_calls)
+
             for tcs in response.tool_calls:
                 if tcs.get("type") == "tool_call":
-                    print(tcs.get(id))
-                    print("Calling function: ", tcs.get("name"))
-                    print("Calling function...")
+                    name = tcs.get("name")
+                    args = tcs.get("args", {})
+                    print("Calling function:", name)
+                    print("Function args:", args)
                     try:
-                        fn = tcs.get("name")
-                        fn()
+                        tool = self.toolMap.get(name)
+                        if tool is None:
+                            raise ValueError(f"Unknown tool: {name}")
+                        result = tool.invoke(args)
+                        print("Tool result:", result)
                     except Exception as e:
                         self.logger.error(e)
