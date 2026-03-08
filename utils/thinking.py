@@ -48,7 +48,7 @@ class ThinkFirst:
         model_name: str | None = None,
         temperature: float = 0.6,
         think: bool = False,
-        format: str | None = None,
+        format: str | dict | None = None,
         num_predict=256,
         num_gpu: int | None = None,
         repeat_penalty: float | None = None,
@@ -120,6 +120,7 @@ class ThinkFirst:
         base_url = f"{self.Scheme}://{self.Host}:{self.Port}"
 
         llm = ChatOllama(
+            validate_model_on_init=True,
             model=model,
             temperature=temperature,
             base_url=base_url,
