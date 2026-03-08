@@ -1,4 +1,5 @@
 from configparser import ConfigParser
+from subprocess import run
 
 import httpx
 from langchain.tools import tool
@@ -17,10 +18,10 @@ class TerminalTools:
         self.conf = cfg
         self.parseConfig()
         assert self.healthCheck(), (
-            f"Could not connect to ollama server:\t {self.Host}:{self.Port} or {self.ThinkModel} not found"
+            f"Could not connect to ollama server:\t {self.Host}:{self.Port} or {self.ToolModel} not found"
         )
-        self.BaseTools = [TerminalTools.sayHello]
-        self.toolMap = {"sayHello": TerminalTools.sayHello}
+        self.BaseTools = [TerminalTools.sayHello, TerminalTools.runCommand]
+        self.toolMap = {"sayHello": TerminalTools.sayHello, "runCommand": TerminalTools.runCommand}
 
     def healthCheck(self) -> bool:
         healthResp = httpx.get(
@@ -59,6 +60,23 @@ class TerminalTools:
         """
         print("Called greeting tool...")
         return f"Hello {user}"
+
+    @tool
+    @staticmethod
+    def runCommand(command: str) -> str:
+        """Run the command specified in command param
+
+        Args:
+            command: Run a command that was passed as string
+
+        Returns:
+            stdout ...
+            stderr ...
+        """
+
+        result = run(command, shell=True, capture_output=True, text=True)
+
+        return f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
 
     def tool_content(
         self,
