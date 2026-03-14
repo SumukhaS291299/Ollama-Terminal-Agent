@@ -70,7 +70,12 @@ class TerminalTools:
             stderr ...
         """
 
-        result = run(command, shell=True, capture_output=True, text=True)
+        result = run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+        )  # executable="pwsh"
 
         return f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
 
