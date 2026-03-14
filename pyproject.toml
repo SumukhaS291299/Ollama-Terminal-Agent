@@ -1,9 +1,10 @@
 [project]
 name = "terminal-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Terminal AI agent powered by Ollama"
 readme = "README.md"
 requires-python = ">=3.11"
+
 dependencies = [
     "httpx>=0.28.1",
     "langchain>=1.2.10",
@@ -12,21 +13,23 @@ dependencies = [
     "textual>=8.1.1",
 ]
 
+[project.scripts]
+ollama-terminal-agent = "main:run"
+ota = "main:run"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["ota_utils*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I"]
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["utils*"]
-
-[tool.setuptools]
-py-modules = ["main"]
-packages = ["ota_utils"]
-
-[project.scripts]
-ollama-terminal-agent = "main:run"
-ota = "main:run"
