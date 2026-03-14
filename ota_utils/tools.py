@@ -1,3 +1,4 @@
+import os
 from configparser import ConfigParser
 from subprocess import run
 
@@ -6,11 +7,12 @@ from langchain.tools import tool
 from langchain_core.messages import BaseMessage, ChatMessage
 from langchain_core.messages.ai import AIMessage
 from langchain_ollama import ChatOllama
-from rich.console import RenderResult
-from typing_extensions import List
+from rich.ansi import AnsiDecoder
 
 from .agentLogger import setup_logger
-from .constants import API
+from .constants import API, SHELL_TYPE
+
+decoder = AnsiDecoder()
 
 
 class TerminalTools:
@@ -59,29 +61,38 @@ class TerminalTools:
 
     @tool
     @staticmethod
-    def runCommand(command: str) -> str:
-        """Run the command specified in command param
+    def runCommand(command: str) -> dict:
+        """Run a shell command.
 
         Args:
-            command: Run a command that was passed as string
+            command: Command to execute.
 
         Returns:
-            stdout ...
-            stderr ...
+            dict containing command, stdout, stderr and returncode
         """
 
+        shell_type = os.environ.get("SHELL_TYPE", "PWSH")
+
+        shell = SHELL_TYPE[shell_type].value
+
+        full_cmd = shell + [command]
+
         result = run(
-            command,
-            shell=True,
+            full_cmd,
             capture_output=True,
             text=True,
-        )  # executable="pwsh"
+        )
 
-        return f"stdout:\n{result.stdout}\n\nstderr:\n{result.stderr}"
+        return {
+            "command": command,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode,
+        }
 
     def tool_content(
         self,
-        messages: List[BaseMessage],
+        messages: list[BaseMessage],
         model_name: str | None = None,
         temperature: float = 0.6,
         think: bool = False,
@@ -92,7 +103,7 @@ class TerminalTools:
         top_k=40,
         stop: list[str] | None = None,
         **kwargs,
-    ) -> None:
+    ) -> str | None | dict:
         """
         Generate a response from the language model based on the provided messages.
 
@@ -178,6 +189,7 @@ class TerminalTools:
 
         if not (response.tool_calls):
             self.logger.warning("No tool calls was found")
+            return response.content
         if isinstance(response, AIMessage) and response.tool_calls:
             print(response.tool_calls)
 
@@ -191,7 +203,16 @@ class TerminalTools:
                         tool = self.toolMap.get(name)
                         if tool is None:
                             raise ValueError(f"Unknown tool: {name}")
+                        command = args.get("command")
+                        self.logger.info(f"Executing command: {command}")
                         result = tool.invoke(args)
                         print("Tool result:", result)
+                        return result
                     except Exception as e:
                         self.logger.error(e)
+        return {
+            "command": None,
+            "stdout": "",
+            "stderr": response.content,
+            "returncode": -1,
+        }
