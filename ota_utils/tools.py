@@ -84,8 +84,10 @@ class TerminalTools:
         )
 
         return {
-            "command": command,
-            "stdout": result.stdout,
+            "command": full_cmd,
+            "stdout": " ".join(full_cmd).replace("[", "").replace("]", "").replace(",", "").replace(",", " ")
+            + ":\n"
+            + result.stdout,
             "stderr": result.stderr,
             "returncode": result.returncode,
         }
@@ -187,9 +189,15 @@ class TerminalTools:
         print(response)
         print(type(response))
 
-        if not (response.tool_calls):
+        if not response.tool_calls:
             self.logger.warning("No tool calls was found")
-            return response.content
+
+            return {
+                "command": None,
+                "stdout": "",
+                "stderr": response.content,
+                "returncode": -1,
+            }
         if isinstance(response, AIMessage) and response.tool_calls:
             print(response.tool_calls)
 

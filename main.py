@@ -6,8 +6,9 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.messages.utils import AnyMessage
 from rich.ansi import AnsiDecoder
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Footer, Header, Input, Static
+from textual.widgets import Footer, Header, Input, RichLog, Static, TextArea
 
 from ota_utils import config, setup_logger
 from ota_utils.messageBuilder import MessageBuilder
@@ -69,7 +70,12 @@ def main():
 # TUI Application
 # ------------------------------
 class TerminalAgentApp(App):
+    BINDINGS = [Binding("ctrl+c", "copy_output", "Copy Output")]
     CSS = """
+    Screen {
+        layout: vertical;
+    }
+
     #status_bar {
         height:3;
         border: round green;
@@ -89,43 +95,53 @@ class TerminalAgentApp(App):
         height:1fr;
         border: round magenta;
     }
+
+    Input {
+        dock: bottom;
+    }
+    RichLog {
+        overflow-y: auto;
+    }
     """
+    # ------------------------------
 
     def compose(self) -> ComposeResult:
 
-        yield Header()
+        yield Header(show_clock=True)
 
-        with Vertical():
+        with Vertical(id="main_area"):
             # STATUS BAR
             with Horizontal(id="status_bar"):
-                yield Static("⏳ Planning", id="status_plan")
-                yield Static("⏳ Execute", id="status_exec")
-                yield Static("⏳ Output", id="status_output")
+                yield Static(" PLAN: idle ", id="status_plan")
+                yield Static(" EXEC: idle ", id="status_exec")
+                yield Static(" OUTPUT: idle ", id="status_output")
 
-            # PLAN PANEL
-            yield Static("Waiting for plan...", id="plan_panel")
+            yield RichLog(highlight=True, markup=True, id="plan_panel", wrap=True)
+            yield RichLog(markup=True, id="metrics_panel", wrap=True)
+            yield TextArea(id="output_panel", read_only=True)
 
-            # METRICS
-            yield Static("Metrics will appear here", id="metrics_panel")
-
-            # OUTPUT PANEL
-            yield Static("", id="output_panel")
-
-        yield Input(placeholder="> Enter command", id="input")
+        yield Input(placeholder="Run a task (example: list files)", id="input")
 
         yield Footer()
 
+    # ------------------------------
+
     def on_mount(self):
 
+        # status widgets
         self.plan_status = self.query_one("#status_plan", Static)
         self.exec_status = self.query_one("#status_exec", Static)
         self.output_status = self.query_one("#status_output", Static)
 
-        self.plan_panel = self.query_one("#plan_panel", Static)
-        self.metrics_panel = self.query_one("#metrics_panel", Static)
-        self.output_panel = self.query_one("#output_panel", Static)
+        # panels
+        self.plan_panel = self.query_one("#plan_panel", RichLog)
+        self.metrics_panel = self.query_one("#metrics_panel", RichLog)
+        self.output_panel = self.query_one("#output_panel", TextArea)
 
-        self.ansi_decoder = AnsiDecoder()
+        # initial text
+        self.plan_panel.write("[dim]Waiting for agent plan...[/dim]")
+        self.metrics_panel.write("[dim]Metrics will appear here[/dim]")
+        self.output_panel.insert("[dim]Command output will appear here[/dim]")
 
     # ------------------------------
 
@@ -133,18 +149,15 @@ class TerminalAgentApp(App):
 
         start = perf_counter()
 
-        # planning started
-        self.call_from_thread(self.plan_status.update, "⚙ Planning...")
+        self.call_from_thread(self.plan_status.update, "⚙ Planning")
+
+        self.call_from_thread(self.plan_panel.write, "[yellow]Generating execution plan...[/yellow]")
 
         plan_text, result = run_agent(task)
 
-        # planning done
         self.call_from_thread(self.plan_status.update, "✓ Planning done")
+        self.call_from_thread(self.plan_panel.write, plan_text)
 
-        # show plan
-        self.call_from_thread(self.plan_panel.update, plan_text)
-
-        # execution
         self.call_from_thread(self.exec_status.update, "⚙ Executing")
 
         command = result.get("command")
@@ -154,29 +167,27 @@ class TerminalAgentApp(App):
 
         self.call_from_thread(self.exec_status.update, "✓ Executed")
 
-        # metrics
         duration = perf_counter() - start
 
-        metrics = f"""
-Task: {task}
-Return code: {rc}
-Execution time: {duration:.2f}s
-"""
+        metrics = (
+            f"[bold cyan]Task:[/bold cyan] {task}\n"
+            f"[bold cyan]Return code:[/bold cyan] {rc}\n"
+            f"[bold cyan]Execution time:[/bold cyan] {duration:.2f}s"
+        )
 
-        self.call_from_thread(self.metrics_panel.update, metrics)
+        self.call_from_thread(self.metrics_panel.clear)
+        self.call_from_thread(self.metrics_panel.write, metrics)
 
-        # output stage
         self.call_from_thread(self.output_status.update, "⚙ Rendering")
 
-        output_text = f"$ {command}\n\n"
+        self.call_from_thread(self.output_panel.insert, f"$ {command}\n\n")
 
         if stdout:
-            output_text += stdout
+            self.call_from_thread(self.output_panel.insert, stdout)
 
         if stderr:
-            output_text += "\n" + stderr
-
-        self.call_from_thread(self.output_panel.update, output_text)
+            self.call_from_thread(self.output_panel.insert, "\nSTDERR:\n")
+            self.call_from_thread(self.output_panel.insert, stderr)
 
         self.call_from_thread(self.output_status.update, "✓ Output ready")
 
@@ -185,19 +196,25 @@ Execution time: {duration:.2f}s
     def on_input_submitted(self, event: Input.Submitted):
 
         task = event.value.strip()
-
         event.input.value = ""
+
+        if not task:
+            return
 
         # reset UI
         self.plan_status.update("⏳ Planning")
         self.exec_status.update("⏳ Execute")
         self.output_status.update("⏳ Output")
 
-        self.plan_panel.update("Planning...")
-        self.metrics_panel.update("")
-        self.output_panel.update("")
+        self.plan_panel.clear()
+        self.metrics_panel.clear()
+        self.output_panel.text = ""
 
         self.run_worker(lambda: self.execute_agent(task), thread=True)
+
+    def action_copy_output(self):
+        text = self.output_panel.text
+        self.app.clipboard = text
 
 
 def run():
