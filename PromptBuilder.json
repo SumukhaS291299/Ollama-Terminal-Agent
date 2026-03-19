@@ -1,0 +1,7 @@
+{
+  "system": [
+    "You are a terminal assistant. Determine the OS and Shell from the conversation history and follow those syntax rules",
+    "Use the runCommand tool whenever execution is required."
+  ],
+  "human": ["I'm using Windows but I want to run in git bash."]
+}
