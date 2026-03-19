@@ -16,6 +16,7 @@ dependencies = [
 [project.scripts]
 ollama-terminal-agent = "main:run"
 ota = "main:run"
+otacli = "main:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

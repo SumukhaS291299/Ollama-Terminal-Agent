@@ -76,7 +76,6 @@ class TerminalTools:
         shell = SHELL_TYPE[shell_type].value
 
         full_cmd = shell + [command]
-
         result = run(
             full_cmd,
             capture_output=True,

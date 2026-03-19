@@ -1,5 +1,7 @@
+import json
 import os
 from configparser import ConfigParser
+from re import S
 from time import perf_counter
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -26,9 +28,12 @@ def run_agent(task: str):
     conf: ConfigParser = config.Readconfig().read()
 
     os.environ["SHELL_TYPE"] = conf.get("Shell", "type", fallback="PWSH").upper()
+    SHELL = os.environ["SHELL_TYPE"]
+    logger.info(f"Shell used : {SHELL}")
 
     thinking = ThinkFirst(conf)
 
+    # Use default message block as a fallback
     messages: list[AnyMessage] = MessageBuilder().build(
         SystemMessage(
             content=(
@@ -37,9 +42,33 @@ def run_agent(task: str):
                 "Use the runCommand tool whenever execution is required."
             )
         ),
-        HumanMessage(content="I'm using Windows and PowerShell."),
+        HumanMessage(content=f"I'm {SHELL} shell type and you have to give me commands that will work with it."),
         HumanMessage(content=task),
     )
+
+    try:
+        if conf.has_option("Prompt", "BuilderFile"):
+            builder_file = conf.get("Prompt", "BuilderFile")
+            with open(builder_file, "r") as builderFile:
+                builderMessageDict = json.load(builderFile)
+            systemMessages: list[str] = builderMessageDict["system"]
+            humanMessages: list[str] = builderMessageDict["human"]
+            if len(systemMessages) == 0 and len(humanMessages) == 0:
+                raise Exception("Nothing in file")
+            if len(systemMessages) == 0 and len(humanMessages) > 0:
+                systemMessages.append("""You are a terminal assistant.
+                    Determine the OS and Shell from the conversation history and follow those syntax rules.
+                    Use the runCommand tool whenever execution is required.""")
+                logger.info("Using prompts ")
+                logger.info(f"[System]: {systemMessages}")
+                logger.info(f"[Human]: {humanMessages}")
+            messages: list[AnyMessage] = MessageBuilder().build(
+                SystemMessage(content=(" ".join(systemMessages))),
+                HumanMessage(content=" ".join(humanMessages)),
+                HumanMessage(content=task),
+            )
+    except Exception as e:
+        logger.error("Failed to load file ", e)
 
     plan_text = thinking.think_content(messages=messages)
 
@@ -64,6 +93,10 @@ def main():
     plan, result = run_agent(task)
     print("\nPLAN:\n", plan)
     print("\nRESULT:\n", result)
+    print("\nRESULT:\n", result.get("stdout"))
+    if result.get("stderr"):
+        print("This error is mostly coming from a wrong command from your LLM")
+        print("\nERROR:\n", result.get("stderr"))
 
 
 # ------------------------------
@@ -226,5 +259,4 @@ def run():
 # ------------------------------
 if __name__ == "__main__":
     run()
-    # main()
 # Give me all python py files that are over 10KB in the current directory tree
